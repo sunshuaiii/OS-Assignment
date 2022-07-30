@@ -1,0 +1,202 @@
+#include <iostream>
+#include <mutex>
+#include <thread>
+#include <random>
+#include <chrono>
+using namespace std;
+
+#define TRAILER_CARGO 2
+#define TRAIN_CARGO 4
+
+#define TRAILER_LOAD_TIME 1
+#define TRAIN_LOAD_TIME 2
+
+void ThreadPort1();
+void ThreadPort2();
+void ThreadTrailer();
+void ThreadTrain();
+//Ship 1 -> Odd num
+//Ship 2 -> Even num
+
+// ship structure to hold data
+struct Ship {
+    int number = 0;   //declared as ship.number
+    int cargos = 0;   //declared as ship.cargos
+};
+
+// port structure
+struct Port {
+    bool available = true;  //declared as g_port1.available || g_port2.available
+    Ship ship;
+};
+
+
+// create ports global variables
+Port g_port1;
+Port g_port2;
+// mutual exclusion variables
+mutex g_mutex_port1;    //when using variable g_port1
+mutex g_mutex_port2;    //when using variable g_port2
+
+// this is the time train/trailer takes to pass through cross section
+#define TRAILER_CROSS_SECTION_TIME 2
+#define TRAIN_CROSS_SECTION_TIME 4
+
+// this is mutual exclusion for cross section route between train and trailer
+mutex g_mutex_cross_section;
+// this is a mutual exclusion for ship counter
+mutex g_mutex_ship_number;  //when you have to increment the ship number (g_ship_number)
+// this is to store the ship number
+unsigned int g_ship_number = 0;
+// maximum and minimum amount of cargos that a ship can load
+#define MAX_SHIP_CARGO 30
+#define MIN_SHIP_CARGO 20
+
+int main() {
+
+    // thread that check port 1 is available or not and which ship is on it
+    thread port1(ThreadPort1);
+    thread port2(ThreadPort2);
+    thread trailer(ThreadTrailer);
+    thread train(ThreadTrain);
+
+    // run infinite
+    while (true) {
+
+        if (g_mutex_port1.try_lock()) {   //lock the port
+            if (g_port1.available) { // check is port is available
+                // create ship on port
+                g_mutex_ship_number.lock();  // lock the ship mutual exclusion to avoid increment twice
+                Ship ship1;
+                ship1.number = ++g_ship_number; // increment the ship number
+                g_mutex_ship_number.unlock(); // Unlock the ship mutual exclusion
+                ship1.cargos = rand() % (MAX_SHIP_CARGO - MIN_SHIP_CARGO + 1) + MIN_SHIP_CARGO; // get random number of cargos in ship
+                cout << "Ship-" << ship1.number << ": " << "Waiting to park ...Carrying " << ship1.cargos<<" cargos. "<<endl;
+                g_port1.ship = ship1;
+                g_port1.available = false; // set port is not available anymore
+            }
+            g_mutex_port1.unlock();  //release the port lock
+        }
+
+        if (g_mutex_port2.try_lock()) {
+            if (g_port2.available) {
+                // create ship on port
+                g_mutex_ship_number.lock();
+                Ship ship2;
+                ship2.number = ++g_ship_number;
+                g_mutex_ship_number.unlock();
+                ship2.cargos = rand() % (MAX_SHIP_CARGO - MIN_SHIP_CARGO + 1) + MIN_SHIP_CARGO;
+                cout << "Ship-" << ship2.number << ": " << "Waiting to park ...Carrying " << ship2.cargos << " cargos. "<<endl;
+                g_port2.ship = ship2;
+                g_port2.available = false;
+            }
+            g_mutex_port2.unlock();
+        }
+
+        // only time to wait other threads to run
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
+    cout << "Finishing" << endl;
+
+}
+
+void ThreadPort1() {
+    cout << "Ship-" << g_port1.ship.number << ": unloading ..." << endl;
+
+    while (true) {
+        // request mutual exclusion for port 1
+        if (g_mutex_port1.try_lock()) {
+            // check if ship already unload all its cargos
+            if (g_port1.ship.cargos == 0) {
+                // if no more cargos to unload , the ship departs and port is available
+                g_port1.available = true;
+            }
+            else {
+                //to show how many cargos the ship still have
+                cout << "Ship-" << g_port1.ship.number << ": Total cargos: " << g_port1.ship.cargos << endl;
+            }
+            // release mutual exclusion for port 1
+            g_mutex_port1.unlock();
+        }
+        this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+    // wait time for other threads to execute
+
+}
+void ThreadPort2() {// similar to Port 1
+    cout << "Ship-" << g_port2.ship.number << ": unloading ..." << endl;
+    while (true) {
+        if (g_mutex_port2.try_lock()) {
+            if (g_port2.ship.cargos == 0) {
+                g_port2.available = true;
+                cout << "Ship-" << g_port2.ship.number << ": departs..." << endl;
+            }
+            else {
+                cout << "Ship-" << g_port2.ship.number << ": Total cargos: " << g_port2.ship.cargos << endl;
+            }
+            g_mutex_port2.unlock();  // release mutual exclusion for port 2
+        }
+        this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
+}
+
+void ThreadTrailer() {
+    while (true) {
+        if (g_mutex_port1.try_lock()) {// check if the port is available to unload cargos
+            if (g_port1.available == true) {
+                cout << "Trailer: waiting for ship" << endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds(300)); // wait 300 mili seconds
+            }
+            else if (g_port1.ship.cargos > 0) {
+                this_thread::sleep_for(std::chrono::seconds(TRAILER_LOAD_TIME)); // waiting time to unload the cargo
+                cout << "Trailer: loading...    Ship-" << g_port1.ship.number << ": Cargos before load: " << g_port1.ship.cargos << ", Cargos after load: " << (g_port1.ship.cargos - TRAILER_CARGO) << endl;;
+                g_port1.ship.cargos -= TRAILER_CARGO; // decrement the ship cargo counter
+                if (g_port1.ship.cargos < 0) {    // check if the cargos already finish for specified ship
+                    g_port1.ship.cargos = 0;
+                }
+                cout << "Trailer: departs" << endl; // trailer departs
+                cout << "Trailer: waiting for gate to open: " << TRAILER_CROSS_SECTION_TIME << " seconds" << endl;
+
+                g_mutex_cross_section.lock();   // check if it can cross the section shared by train
+                this_thread::sleep_for(chrono::seconds(TRAILER_CROSS_SECTION_TIME));  // if section is free, pass through it
+                g_mutex_cross_section.unlock();  // release the shared section for train to pass
+            }
+            else {
+                //do nothing
+            }
+            g_mutex_port1.unlock();
+        }
+        this_thread::sleep_for(chrono::milliseconds(100));
+    }
+}
+
+void ThreadTrain() {
+    while (true) {
+        if (g_mutex_port2.try_lock()) {// check if the port is available to unload cargos
+            if (g_port2.available == true) {
+                cout << "Train: waiting for ship" << endl;
+                this_thread::sleep_for(chrono::milliseconds(300)); // wait 300 mili seconds
+            }
+            else if (g_port2.ship.cargos > 0) {
+                this_thread::sleep_for(std::chrono::seconds(TRAIN_LOAD_TIME));
+                cout << "Train: loading...    Ship-" << g_port2.ship.number << ": Cargos before load: " << g_port2.ship.cargos << ", Cargos after load: " << (g_port2.ship.cargos - TRAIN_CARGO) << endl;;
+                g_port2.ship.cargos -= TRAIN_CARGO;
+                if (g_port2.ship.cargos < 0) {
+                    g_port2.ship.cargos = 0;
+                }
+                cout << "Train: departs" << endl;
+                cout << "Train: waiting for gate to open: " << TRAIN_CROSS_SECTION_TIME << " seconds" << endl;
+                g_mutex_cross_section.lock();
+                this_thread::sleep_for(chrono::seconds(TRAIN_CROSS_SECTION_TIME));
+                g_mutex_cross_section.unlock();
+            }
+            else {
+                //do nothing
+            }
+            g_mutex_port2.unlock();
+        }
+        this_thread::sleep_for(chrono::milliseconds(100));
+    }
+}
