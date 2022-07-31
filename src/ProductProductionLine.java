@@ -23,10 +23,10 @@ public class ProductProductionLine {
     private static final Semaphore product = new Semaphore(0); // check if a product is ready to assemble
     private static final Semaphore box = new Semaphore(0); // check if a box is ready to label
 
-    private static int unitNumberA = 0; // initialisation: to keep tract number of components A produced
-    private static int unitNumberB = 0; // initialisation: to keep tract number of components B produced
-    private static int productNumber = 0; // initialisation: to keep tract number of products assembled
-    private static int boxNumber = 0; // initialisation: to keep tract number of boxes packed
+    private static int unitNumberA = 0; // initialisation: to keep track the number of components A ready to assemble
+    private static int unitNumberB = 0; // initialisation: to keep track the number of components B ready to assemble
+    private static int productNumber = 0; // initialisation: to keep track the number of products ready to pack
+    private static int boxNumber = 0; // initialisation: to keep track the number of boxes ready to label
 
 //     A thread to simulate the production of Component-A.
     public static class componentA implements Runnable {
