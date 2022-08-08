@@ -3,7 +3,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 
 public class ProductProductionLine {
-    private static final int TOTAL_UNIT = 12;   // total units to produce
+    private static final int TOTAL_A_UNIT = 15;   // total units of component A to be produced
+    private static final int TOTAL_B_UNIT = 12;   // total units of component B to be produced
     private static final int TIME_A = 1000; // time needed to produce component A
     private static final int TIME_B = 2000; // time needed to produce component B
     private static final int TIME_ASSEMBLE = 2000; // time needed to assemble components A and B as a product
@@ -140,14 +141,20 @@ public class ProductProductionLine {
 
     public static void main(String[] args) {
         ExecutorService exe = Executors.newCachedThreadPool();
+        System.out.printf("Component A: %d units to be produced%n", TOTAL_A_UNIT);
+        System.out.printf("Component B: %d units to be produced%n", TOTAL_B_UNIT);
 
         // the production line
         exe.execute(new assembler());
         exe.execute(new packer());
         exe.execute(new labeller());
 
-        for (int i = 0; i < TOTAL_UNIT; i++) {
+
+        for (int i = 0; i < TOTAL_A_UNIT; i++) {
             exe.execute(new componentA());
+        }
+
+        for (int i = 0; i < TOTAL_B_UNIT; i++) {
             exe.execute(new componentB());
         }
 
