@@ -3,8 +3,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 
 public class ProductProductionLine {
-    private static final int TOTAL_A_UNIT = 15;   // total units of component A to be produced
-    private static final int TOTAL_B_UNIT = 12;   // total units of component B to be produced
+    private static final int TOTAL_A_UNIT = 100;   // total units of component A to be produced
+    private static final int TOTAL_B_UNIT = 50;   // total units of component B to be produced
     private static final int TIME_A = 1000; // time needed to produce component A
     private static final int TIME_B = 2000; // time needed to produce component B
     private static final int TIME_ASSEMBLE = 2000; // time needed to assemble components A and B as a product
